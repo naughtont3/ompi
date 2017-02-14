@@ -39,6 +39,7 @@ endif
 mcacomponentdir = $(ortelibdir)
 mcacomponent_LTLIBRARIES = $(component_install)
 mca_rml_ofi_la_SOURCES = $(sources)
+mca_rml_ofi_la_CPPFLAGS = $(orte_rml_ofi_CPPFLAGS)
 mca_rml_ofi_la_LDFLAGS = \
 			$(orte_rml_ofi_LDFLAGS) \
 			-module -avoid-version
@@ -47,6 +48,7 @@ mca_rml_ofi_la_LIBADD = $(orte_rml_ofi_LIBS) \
 
 noinst_LTLIBRARIES = $(component_noinst)
 libmca_rml_ofi_la_SOURCES = $(sources)
+libmca_rml_ofi_la_CPPFLAGS = $(orte_rml_ofi_CPPFLAGS)
 libmca_rml_ofi_la_LDFLAGS = \
 		$(orte_rml_ofi_LDFLAGS) \
 		-module -avoid-version

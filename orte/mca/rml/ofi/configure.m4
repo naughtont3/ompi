@@ -14,7 +14,7 @@
 # ----------------------------------------
 # Only require the tag if we're actually going to be built
 
-# MCA_mtl_ofi_CONFIG([action-if-can-compile],
+# MCA_orte_rml_ofi_CONFIG([action-if-can-compile],
 #                    [action-if-cant-compile])
 # ------------------------------------------------
 AC_DEFUN([MCA_orte_rml_ofi_CONFIG],[
@@ -23,7 +23,17 @@ AC_DEFUN([MCA_orte_rml_ofi_CONFIG],[
     # ensure we already ran the common libfabric config
     AC_REQUIRE([MCA_opal_common_libfabric_CONFIG])
 
-    AS_IF([test "$opal_common_libfabric_happy" = "yes"],
+    OPAL_CHECK_LIBFABRIC([orte_rml_ofi], [orte_rml_ofi_good=1], [orte_rml_ofi_good=0])
+
+    # if check worked, set wrapper flags if so.
+    # Evaluate succeed / fail
+    AS_IF([test "$orte_rml_ofi_good" = "1"],
           [$1],
           [$2])
+
+    # set build flags to use in makefile
+    AC_SUBST([orte_rml_ofi_CPPFLAGS])
+    AC_SUBST([orte_rml_ofi_LDFLAGS])
+    AC_SUBST([orte_rml_ofi_LIBS])
+
 ])dnl
