@@ -175,10 +175,63 @@ static void job_errors(int fd, short args, void *cbdata)
                          ORTE_JOBID_PRINT(jdata->jobid),
                          orte_job_state_to_str(jobstate)));
 
+    /* 
+       TJN: DEBUGGING - It appears that if we fail mapping, we will
+        have problems in single host case b/c we disable routing
+        and will early exit in DVM mode when we run next command.
+        (e.g., orte_routed_base_xcast_routing() @ L273 with check on
+        orte_routing_is_enabled)
+
+        (See OMPI-Issue#2987 https://github.com/open-mpi/ompi/issues/2987)
+     */
+ #if 0  /*DBG*/ 
     if (ORTE_JOB_STATE_NEVER_LAUNCHED == jobstate ||
         ORTE_JOB_STATE_ALLOC_FAILED == jobstate ||
         ORTE_JOB_STATE_MAP_FAILED == jobstate ||
         ORTE_JOB_STATE_CANNOT_LAUNCH == jobstate) {
+ #endif /*DBG*/
+    if (ORTE_JOB_STATE_MAP_FAILED == jobstate) {
+        opal_output (0, "[%s:%d,%s()] DBG: JOB_STATE_MAP_FAILED jobstate=%d\n", __FILE__, __LINE__, __func__, jobstate);
+        if (ORTE_JOBID_INVALID != jdata->originator.jobid) {
+            rc = jobstate;
+            answer = OBJ_NEW(opal_buffer_t);
+            if (ORTE_SUCCESS != (ret = opal_dss.pack(answer, &rc, 1, OPAL_INT32))) {
+                ORTE_ERROR_LOG(ret);
+                OBJ_RELEASE(caddy);
+                return;
+            }
+            if (ORTE_SUCCESS != (ret = opal_dss.pack(answer, &jdata->jobid, 1, ORTE_JOBID))) {
+                ORTE_ERROR_LOG(ret);
+                OBJ_RELEASE(caddy);
+                return;
+            }
+            /* pack the room number */
+            rmptr = &room;
+            if (orte_get_attribute(&jdata->attributes, ORTE_JOB_ROOM_NUM, (void**)&rmptr, OPAL_INT)) {
+                if (ORTE_SUCCESS != (ret = opal_dss.pack(answer, &room, 1, OPAL_INT))) {
+                    ORTE_ERROR_LOG(ret);
+                    OBJ_RELEASE(caddy);
+                    return;
+                }
+            }
+            OPAL_OUTPUT_VERBOSE((5, orte_errmgr_base_framework.framework_output,
+                                 "%s errmgr:dvm sending dyn error release of job %s to %s",
+                                 ORTE_NAME_PRINT(ORTE_PROC_MY_NAME),
+                                 ORTE_JOBID_PRINT(jdata->jobid),
+                                 ORTE_NAME_PRINT(&jdata->originator)));
+            if (0 > (ret = orte_rml.send_buffer_nb(orte_mgmt_conduit,
+                                                           &jdata->originator, answer,
+                                                           ORTE_RML_TAG_LAUNCH_RESP,
+                                                           orte_rml_send_callback, NULL))) {
+                ORTE_ERROR_LOG(ret);
+                OBJ_RELEASE(answer);
+            }
+        }
+        OBJ_RELEASE(caddy);
+        return;
+    } else if (ORTE_JOB_STATE_NEVER_LAUNCHED == jobstate ||
+               ORTE_JOB_STATE_ALLOC_FAILED == jobstate ||
+               ORTE_JOB_STATE_CANNOT_LAUNCH == jobstate) {
         /* disable routing as we may not have performed the daemon
          * wireup - e.g., in a managed environment, all the daemons
          * "phone home", but don't actually wireup into the routed
