@@ -136,6 +136,8 @@ void __attribute__((weak)) Tau_track_class_allocation(const char * name, size_t 
 void __attribute__((weak)) Tau_track_class_deallocation(const char * name, size_t size);
 void __attribute__((weak)) Tau_start_class_allocation(const char * name, size_t size, int include_in_parent);
 void __attribute__((weak)) Tau_stop_class_allocation(const char * name, int record);
+void __attribute__((weak)) Tau_start_class_deallocation(const char * name, size_t size, int include_in_parent);
+void __attribute__((weak)) Tau_stop_class_deallocation(const char * name, int record);
 
 /* typedefs ***********************************************************/
 
@@ -462,11 +464,13 @@ static inline void opal_obj_run_destructors(opal_object_t * object)
 
     assert(NULL != object->obj_class);
 
+    Tau_start_class_deallocation(object->obj_class->cls_name, object->obj_class->cls_sizeof, 0);
     cls_destruct = object->obj_class->cls_destruct_array;
     while( NULL != *cls_destruct ) {
         (*cls_destruct)(object);
         cls_destruct++;
     }
+    Tau_stop_class_deallocation(object->obj_class->cls_name, 1);
 }
 
 
