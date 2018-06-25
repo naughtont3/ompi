@@ -464,13 +464,12 @@ static inline void opal_obj_run_destructors(opal_object_t * object)
 
     assert(NULL != object->obj_class);
 
-    Tau_start_class_deallocation(object->obj_class->cls_name, object->obj_class->cls_sizeof, 0);
+    Tau_track_class_deallocation(object->obj_class->cls_name, object->obj_class->cls_sizeof);
     cls_destruct = object->obj_class->cls_destruct_array;
     while( NULL != *cls_destruct ) {
         (*cls_destruct)(object);
         cls_destruct++;
     }
-    Tau_stop_class_deallocation(object->obj_class->cls_name, 1);
 }
 
 
