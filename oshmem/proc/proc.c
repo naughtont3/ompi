@@ -136,6 +136,7 @@ oshmem_group_t* oshmem_proc_group_create(int pe_start,
     assert(oshmem_proc_local());
 
     group = OBJ_NEW(oshmem_group_t);
+    Tau_start_class_allocation(group->base.obj_class->cls_name, 0, 0);
 
     if (group) {
         cur_pe = 0;
@@ -145,7 +146,10 @@ oshmem_group_t* oshmem_proc_group_create(int pe_start,
 
         /* allocate an array */
         proc_array = (ompi_proc_t**) malloc(pe_size * sizeof(ompi_proc_t*));
+        Tau_start_class_allocation("ompi_proc_t **", pe_size * sizeof(ompi_proc_t*), 0);
+        Tau_stop_class_allocation("ompi_proc_t **", 1);
         if (NULL == proc_array) {
+            Tau_stop_class_allocation(group->base.obj_class->cls_name, 0);
             OBJ_RELEASE(group);
             OPAL_THREAD_UNLOCK(&oshmem_proc_lock);
             return NULL ;
@@ -197,6 +201,7 @@ oshmem_group_t* oshmem_proc_group_create(int pe_start,
         if (OSHMEM_SUCCESS != mca_scoll_base_select(group)) {
             opal_output(0,
                         "Error: No collective modules are available: group is not created, returning NULL");
+            Tau_stop_class_allocation(group->base.obj_class->cls_name, 0);
             oshmem_proc_group_destroy(group);
             OPAL_THREAD_UNLOCK(&oshmem_proc_lock);
             return NULL;
@@ -204,6 +209,7 @@ oshmem_group_t* oshmem_proc_group_create(int pe_start,
         OPAL_THREAD_UNLOCK(&oshmem_proc_lock);
     }
 
+    Tau_stop_class_allocation(group->base.obj_class->cls_name, 0);
     return group;
 }
 
