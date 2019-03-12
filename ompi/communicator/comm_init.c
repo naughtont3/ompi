@@ -35,7 +35,6 @@
 
 #include "opal/util/bit_ops.h"
 #include "opal/util/info_subscriber.h"
-#include "opal/util/string_copy.h"
 #include "opal/util/memprof.h"
 #include "opal/mca/pmix/pmix.h"
 #include "ompi/constants.h"
