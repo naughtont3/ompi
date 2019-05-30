@@ -32,6 +32,8 @@
 #include "opal/sys/atomic.h"
 #include "opal/class/opal_object.h"
 #include "opal/constants.h"
+#include "opal/util/memprof.h"
+
 
 /*
  * Instantiation of class descriptor for the base class.  This is

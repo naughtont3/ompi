@@ -28,6 +28,7 @@
 #include "opal/dss/dss.h"
 #include "opal/util/arch.h"
 #include "opal/class/opal_list.h"
+#include "opal/util/memprof.h"
 
 
 static opal_mutex_t oshmem_proc_lock;
@@ -161,6 +162,8 @@ oshmem_group_t* oshmem_proc_group_create(int pe_start, int pe_stride, int pe_siz
     }
 
     group = OBJ_NEW(oshmem_group_t);
+    OPAL_MEMPROF_START_ALLOC(group->base.obj_class->cls_name, 0, 0);
+
     if (NULL == group) {
         return NULL;
     }
@@ -172,7 +175,10 @@ oshmem_group_t* oshmem_proc_group_create(int pe_start, int pe_stride, int pe_siz
 
     /* allocate an array */
     proc_array = (ompi_proc_t**) malloc(pe_size * sizeof(ompi_proc_t*));
+    OPAL_MEMPROF_START_ALLOC("ompi_proc_t **", pe_size * sizeof(ompi_proc_t*), 0);
+    OPAL_MEMPROF_STOP_ALLOC("ompi_proc_t **", 1);
     if (NULL == proc_array) {
+        OPAL_MEMPROF_STOP_ALLOC(group->base.obj_class->cls_name, 0);
         OBJ_RELEASE(group);
         OPAL_THREAD_UNLOCK(&oshmem_proc_lock);
         return NULL ;
@@ -224,6 +230,7 @@ oshmem_group_t* oshmem_proc_group_create(int pe_start, int pe_stride, int pe_siz
     if (OSHMEM_SUCCESS != mca_scoll_base_select(group)) {
         opal_output(0,
                 "Error: No collective modules are available: group is not created, returning NULL");
+        OPAL_MEMPROF_STOP_ALLOC(group->base.obj_class->cls_name, 0);
         oshmem_proc_group_destroy_internal(group, 0);
         OPAL_THREAD_UNLOCK(&oshmem_proc_lock);
         return NULL;
@@ -237,6 +244,7 @@ oshmem_group_t* oshmem_proc_group_create(int pe_start, int pe_stride, int pe_siz
     }
 
     OPAL_THREAD_UNLOCK(&oshmem_proc_lock);
+    OPAL_MEMPROF_STOP_ALLOC(group->base.obj_class->cls_name, 0);
     return group;
 }
 

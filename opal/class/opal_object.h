@@ -124,6 +124,7 @@
 #include <stdlib.h>
 
 #include "opal/threads/thread_usage.h"
+#include "opal/util/memprof.h"
 
 BEGIN_C_DECLS
 
@@ -131,6 +132,7 @@ BEGIN_C_DECLS
 /* Any kind of unique ID should do the job */
 #define OPAL_OBJ_MAGIC_ID ((0xdeafbeedULL << 32) + 0xdeafbeedULL)
 #endif
+
 
 /* typedefs ***********************************************************/
 
@@ -457,6 +459,7 @@ static inline void opal_obj_run_destructors(opal_object_t * object)
 
     assert(NULL != object->obj_class);
 
+    OPAL_MEMPROF_TRACK_DEALLOC(object->obj_class->cls_name, object->obj_class->cls_sizeof);
     cls_destruct = object->obj_class->cls_destruct_array;
     while( NULL != *cls_destruct ) {
         (*cls_destruct)(object);
@@ -480,6 +483,8 @@ static inline opal_object_t *opal_obj_new(opal_class_t * cls)
     opal_object_t *object;
     assert(cls->cls_sizeof >= sizeof(opal_object_t));
 
+    OPAL_MEMPROF_START_ALLOC(cls->cls_name, cls->cls_sizeof, 0);
+
 #if OPAL_WANT_MEMCHECKER
     object = (opal_object_t *) calloc(1, cls->cls_sizeof);
 #else
@@ -493,6 +498,7 @@ static inline opal_object_t *opal_obj_new(opal_class_t * cls)
         object->obj_reference_count = 1;
         opal_obj_run_constructors(object);
     }
+    OPAL_MEMPROF_STOP_ALLOC(cls->cls_name, 1);
     return object;
 }
 

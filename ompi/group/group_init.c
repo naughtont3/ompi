@@ -28,6 +28,8 @@
 #include "ompi/constants.h"
 #include "mpi.h"
 
+#include "opal/util/memprof.h"
+
 /* define class information */
 static void ompi_group_construct(ompi_group_t *);
 static void ompi_group_destruct(ompi_group_t *);
@@ -57,7 +59,11 @@ ompi_predefined_group_t *ompi_mpi_group_null_addr = &ompi_mpi_group_null;
 ompi_group_t *ompi_group_allocate(int group_size)
 {
     /* local variables */
+    OPAL_MEMPROF_START_ALLOC("ompi_group_t", 0, 0);
     ompi_proc_t **procs = calloc (group_size, sizeof (ompi_proc_t *));
+    OPAL_MEMPROF_START_ALLOC("ompi_proc_t **", group_size * sizeof(ompi_proc_t *), 0);
+    OPAL_MEMPROF_STOP_ALLOC("ompi_proc_t **", 1);
+    OPAL_MEMPROF_STOP_ALLOC("ompi_group_t", 0);
     ompi_group_t *new_group;
 
     if (NULL == procs) {
@@ -81,6 +87,7 @@ ompi_group_t *ompi_group_allocate_plist_w_procs (ompi_proc_t **procs, int group_
 
     /* create new group group element */
     new_group = OBJ_NEW(ompi_group_t);
+    OPAL_MEMPROF_START_ALLOC(new_group->super.obj_class->cls_name, 0, 0);
 
     if (NULL == new_group) {
         return NULL;
@@ -105,7 +112,7 @@ ompi_group_t *ompi_group_allocate_plist_w_procs (ompi_proc_t **procs, int group_
     OMPI_GROUP_SET_DENSE(new_group);
 
     ompi_group_increment_proc_count (new_group);
-
+    OPAL_MEMPROF_STOP_ALLOC(new_group->super.obj_class->cls_name, 0);
     return new_group;
 }
 
@@ -126,11 +133,14 @@ ompi_group_t *ompi_group_allocate_sporadic(int group_size)
         new_group = NULL;
         goto error_exit;
     }
+    OPAL_MEMPROF_START_ALLOC(new_group->super.obj_class->cls_name, 0, 0);
     /* allocate array of (grp_sporadic_list )'s */
     if (0 < group_size) {
         new_group->sparse_data.grp_sporadic.grp_sporadic_list =
             (struct ompi_group_sporadic_list_t *)malloc
             (sizeof(struct ompi_group_sporadic_list_t ) * group_size);
+        OPAL_MEMPROF_START_ALLOC("ompi_group_sporadic_list_t *", sizeof(struct ompi_group_sporadic_list_t ) * group_size, 0);
+        OPAL_MEMPROF_STOP_ALLOC("ompi_group_sporadic_list_t *", 1);
 
         /* non-empty group */
         if ( NULL == new_group->sparse_data.grp_sporadic.grp_sporadic_list) {
@@ -151,6 +161,7 @@ ompi_group_t *ompi_group_allocate_sporadic(int group_size)
     OMPI_GROUP_SET_SPORADIC(new_group);
 
  error_exit:
+    OPAL_MEMPROF_STOP_ALLOC(new_group->super.obj_class->cls_name, 0);
     return new_group;
 }
 
@@ -168,6 +179,7 @@ ompi_group_t *ompi_group_allocate_strided(void)
         new_group = NULL;
         goto error_exit;
     }
+    OPAL_MEMPROF_START_ALLOC(new_group->super.obj_class->cls_name, 0, 0);
     /* initialize our rank to MPI_UNDEFINED */
     new_group->grp_my_rank    = MPI_UNDEFINED;
     new_group->grp_proc_pointers     = NULL;
@@ -177,6 +189,7 @@ ompi_group_t *ompi_group_allocate_strided(void)
     new_group->sparse_data.grp_strided.grp_strided_last_element   = -1;
  error_exit:
     /* return */
+    OPAL_MEMPROF_STOP_ALLOC(new_group->super.obj_class->cls_name, 0);
     return new_group;
 }
 ompi_group_t *ompi_group_allocate_bmap(int orig_group_size , int group_size)
@@ -196,8 +209,11 @@ ompi_group_t *ompi_group_allocate_bmap(int orig_group_size , int group_size)
         goto error_exit;
     }
     /* allocate the unsigned char list */
+    OPAL_MEMPROF_START_ALLOC(new_group->super.obj_class->cls_name, 0, 0);
     new_group->sparse_data.grp_bitmap.grp_bitmap_array = (unsigned char *)malloc
         (sizeof(unsigned char) * ompi_group_div_ceil(orig_group_size,BSIZE));
+    OPAL_MEMPROF_START_ALLOC("unsigned char *", sizeof(struct ompi_group_sporadic_list_t ) * group_size, 0);
+    OPAL_MEMPROF_STOP_ALLOC("unsigned char *", 1);
 
     new_group->sparse_data.grp_bitmap.grp_bitmap_array_len =
         ompi_group_div_ceil(orig_group_size,BSIZE);
@@ -211,6 +227,7 @@ ompi_group_t *ompi_group_allocate_bmap(int orig_group_size , int group_size)
 
  error_exit:
     /* return */
+    OPAL_MEMPROF_STOP_ALLOC(new_group->super.obj_class->cls_name, 0);
     return new_group;
 }
 
