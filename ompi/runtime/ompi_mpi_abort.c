@@ -193,7 +193,14 @@ ompi_mpi_abort(struct ompi_communicator_t* comm,
 
        In all of these cases, the only sensible thing left to do is to
        kill the entire job.  Wah wah. */
-    ompi_rte_abort(errcode, NULL);
 
-    /* Does not return */
+    if (NULL != getenv("TJN_SPAWN_SKIP_RTE_ABORT")) {
+        opal_output(0, "DBG: SKIPPING RTE ABORT (RETURN SUCCESS)\n");
+        return OMPI_SUCCESS;
+    } else {
+        ompi_rte_abort(errcode, NULL);
+
+        /* Does not return */
+    }
+
 }
