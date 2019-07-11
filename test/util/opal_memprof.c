@@ -39,6 +39,7 @@ int main(int argc, char* argv[])
 
     test_init("opal_memhook");
 
+
     if (test1()) {
         test_success();
     }
@@ -60,15 +61,55 @@ int main(int argc, char* argv[])
 }
 
 
+/*
+ * XXX: Test following
+ *
+ *   OPAL_MEMPROF_TRACK_ALLOC(name, size)
+ *   OPAL_MEMPROF_TRACK_DEALLOC(name, size)
+ */
 static bool test1(void)
 {
-    printf("DBG: Hello1\n");
+    int i, *data = NULL, data_size, base_val;
+
+    base_val = 100;
+    data_size = 10 * sizeof(int);
+
+    /*
+     * XXX: Not sure this is working correctly to capture
+     *      what we need for the memprof hooks.
+     *      Test this with 'tau_exec'!!!
+     */
+    data = (int*) malloc( data_size );
+    OPAL_MEMPROF_TRACK_ALLOC("test1_data", data_size);
+
+    for (i=0; i < 10; i++) {
+        data[i] = base_val + i;
+    }
+
+    for (i=0; i < 10; i++) {
+        printf("%s: data[%d] = %d  (should be: %d + %d)\n",
+               __func__, i, data[i], base_val, i);
+    }
+
+    if (NULL != data) {
+        free(data);
+        OPAL_MEMPROF_TRACK_DEALLOC("test1_data", data_size );
+    }
+
     return true;
 }
 
+
+/*
+ * XXX: Test following
+ *
+ * OPAL_MEMPROF_START_ALLOC(name, size, include_in_parent)
+ * OPAL_MEMPROF_STOP_ALLOC(name, record)
+ * OPAL_MEMPROF_START_DEALLOC(name, size, include_in_parent)
+ * OPAL_MEMPROF_STOP_DEALLOC(name, record)
+ */
 static bool test2(void)
 {
-    printf("DBG: Hello2 BAD\n");
-    return false;
+    printf("TODO: write test2\n");
+    return true;
 }
-
