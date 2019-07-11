@@ -15,6 +15,8 @@
 # Copyright (c) 2018      Research Organization for Information Science
 #                         and Technology (RIST). All rights reserved.
 # Copyright (c) 2018      Intel, Inc.  All rights reserved.
+# Copyright (c) 2019      UT-Battelle, LLC. All rights reserved.
+#
 # $COPYRIGHT$
 #
 # Additional copyrights may follow
@@ -38,6 +40,7 @@ AM_CPPFLAGS = -I$(top_srcdir)/test/support
 
 check_PROGRAMS = \
 	opal_bit_ops \
+	opal_memprof \
 	opal_path_nfs \
 	bipartite_graph
 
@@ -84,6 +87,13 @@ opal_path_nfs_LDADD = \
         $(top_builddir)/opal/lib@OPAL_LIB_PREFIX@open-pal.la \
         $(top_builddir)/test/support/libsupport.a
 opal_path_nfs_DEPENDENCIES = $(opal_path_nfs_LDADD)
+
+# TODO: Add conditional for this test related to 'OPAL_ENABLE_MEM_PROFILE'
+opal_memprof_SOURCES = opal_memprof.c
+opal_memprof_LDADD = \
+        $(top_builddir)/opal/lib@OPAL_LIB_PREFIX@open-pal.la \
+        $(top_builddir)/test/support/libsupport.a
+opal_memprof_DEPENDENCIES = $(opal_memprof_LDADD)
 
 #opal_os_path_SOURCES = opal_os_path.c
 #opal_os_path_LDADD = \
