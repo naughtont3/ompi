@@ -37,12 +37,12 @@ AM_CPPFLAGS = -I$(top_srcdir)/test/support
 #        opal_basename \
 #        opal_path_nfs
 
-
 check_PROGRAMS = \
 	opal_bit_ops \
 	opal_memprof \
 	opal_path_nfs \
 	bipartite_graph
+
 
 TESTS = \
 	$(check_PROGRAMS)

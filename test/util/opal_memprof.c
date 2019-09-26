@@ -1,14 +1,4 @@
 /*
- * Copyright (c) 2004-2005 The Trustees of Indiana University and Indiana
- *                         University Research and Technology
- *                         Corporation.  All rights reserved.
- * Copyright (c) 2004-2005 The University of Tennessee and The University
- *                         of Tennessee Research Foundation.  All rights
- *                         reserved.
- * Copyright (c) 2004-2005 High Performance Computing Center Stuttgart,
- *                         University of Stuttgart.  All rights reserved.
- * Copyright (c) 2004-2005 The Regents of the University of California.
- *                         All rights reserved.
  * Copyright (c) 2019      UT-Battelle, LLC. All rights reserved.
  *
  * $COPYRIGHT$
@@ -18,98 +8,126 @@
  * $HEADER$
  */
 
-#include "orte_config.h"
+/*
+ * Description: This is a trivial test to exercise
+ *   the memory profile functions added to OPAL.
+ *   Note, we have the program call MPI_Init() so
+ *   we can easily capture memory counters, e.g., via
+ *   Tau 'mpi' module).
+ *
+ * Usage:
+ *     mpicc opal_memprof.c -o opal_memprof
+ *     mpirun -np 2 tau_exec -T mpi,pdt,pthread ./opal_memprof
+ *     grep -e test1 -e test2 profile.*.0.0
+ *
+ *   When done, we will have the typical counters
+ *   as well as the item add in this test:
+ *          'alloc test1_data'
+ *          'free  test1_data'
+ *          'alloc test2_data'
+ *          'free  test2_data'
+ *
+ *   We do not actually allocate memory because that
+ *   is not needed to test the event tracking calls.
+ */
+
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
-#ifdef HAVE_SYS_PARAM_H
-#include <sys/param.h>
-#endif
+#include <unistd.h>
+
+#include "mpi.h"
 
 #include "opal/runtime/opal.h"
-#include "support.h"
+#include "opal/util/memprof.h"
 
-static bool test1(void);
-static bool test2(void);
+#define SIZE  40
 
+#define RET_PASS  1
+#define RET_FAIL  0
+
+static int test1(int rank);
+static int test2(int rank);
 
 int main(int argc, char* argv[])
 {
-    opal_init(&argc, &argv);
+    int rank;
 
-    test_init("opal_memhook");
+    MPI_Init(&argc, &argv);
 
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    if (test1()) {
-        test_success();
+    if (test1(rank)) {
+        printf("(rank %d) test1 SUCCESS\n", rank);
     }
     else {
-      test_failure("opal_memhook test1 failed");
+        printf("(rank %d) test1 FAILED\n", rank);
     }
 
-    if (test2()) {
-        test_success();
+    if (test2(rank)) {
+        printf("(rank %d) test2 SUCCESS\n", rank);
     }
     else {
-      test_failure("opal_memhook test2 failed");
+        printf("(rank %d) test2 FAILED\n", rank);
     }
 
-    opal_finalize();
+    MPI_Finalize();
 
-    test_finalize();
     return 0;
 }
 
-
 /*
- * XXX: Test following
+ * Test following:
  *
  *   OPAL_MEMPROF_TRACK_ALLOC(name, size)
  *   OPAL_MEMPROF_TRACK_DEALLOC(name, size)
  */
-static bool test1(void)
+static int test1(int rank)
 {
-    int i, *data = NULL, data_size, base_val;
+    OPAL_MEMPROF_TRACK_ALLOC("test1_data", SIZE);
 
-    base_val = 100;
-    data_size = 10 * sizeof(int);
+    printf("(rank %d) %s: allocated size = %d\n",
+           rank, __func__, SIZE);
 
-    /*
-     * XXX: Not sure this is working correctly to capture
-     *      what we need for the memprof hooks.
-     *      Test this with 'tau_exec'!!!
-     */
-    data = (int*) malloc( data_size );
-    OPAL_MEMPROF_TRACK_ALLOC("test1_data", data_size);
+    /* Add slight delay in case we test tracing. */
+    usleep(20);
 
-    for (i=0; i < 10; i++) {
-        data[i] = base_val + i;
-    }
+    OPAL_MEMPROF_TRACK_DEALLOC("test1_data", SIZE);
 
-    for (i=0; i < 10; i++) {
-        printf("%s: data[%d] = %d  (should be: %d + %d)\n",
-               __func__, i, data[i], base_val, i);
-    }
-
-    if (NULL != data) {
-        free(data);
-        OPAL_MEMPROF_TRACK_DEALLOC("test1_data", data_size );
-    }
-
-    return true;
+    return RET_PASS;
 }
 
 
 /*
- * XXX: Test following
+ * Test following:
  *
- * OPAL_MEMPROF_START_ALLOC(name, size, include_in_parent)
- * OPAL_MEMPROF_STOP_ALLOC(name, record)
- * OPAL_MEMPROF_START_DEALLOC(name, size, include_in_parent)
- * OPAL_MEMPROF_STOP_DEALLOC(name, record)
+ *   OPAL_MEMPROF_START_ALLOC(name, size, include_in_parent)
+ *   OPAL_MEMPROF_STOP_ALLOC(name, record)
+ *   OPAL_MEMPROF_START_DEALLOC(name, size, include_in_parent)
+ *   OPAL_MEMPROF_STOP_DEALLOC(name, record)
  */
-static bool test2(void)
+static int test2(int rank)
 {
-    printf("TODO: write test2\n");
-    return true;
+    int i;
+
+    OPAL_MEMPROF_START_ALLOC("test2_data", SIZE, 0);
+
+    printf("(rank %d) %s: allocate size = %d\n",
+           rank, __func__, SIZE);
+
+    /* Add slight delay in case we test tracing. */
+    usleep(20);
+
+    OPAL_MEMPROF_STOP_ALLOC("test2_data", 1);
+
+    /* Add slight delay in case we test tracing. */
+    usleep(20);
+
+    /*
+     * NOTE: Hierarchical deallocation routines are not
+     *       currently supported by Tau.  So always
+     *       just use OPAL_MEMPROF_TRACK_DEALLOC.
+     */
+    OPAL_MEMPROF_TRACK_DEALLOC("test2_data", SIZE);
+
+    return RET_PASS;
 }
