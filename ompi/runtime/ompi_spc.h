@@ -138,6 +138,7 @@ typedef enum ompi_spc_counters {
     OMPI_SPC_TESTALL,
     OMPI_SPC_TESTANY,
     OMPI_SPC_TESTSOME,
+    OMPI_SPC_TIME_ALLTOALL,
     OMPI_SPC_WAIT,
     OMPI_SPC_WAITALL,
     OMPI_SPC_WAITANY,

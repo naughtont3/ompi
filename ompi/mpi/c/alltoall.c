@@ -51,6 +51,7 @@ int MPI_Alltoall(const void *sendbuf, int sendcount, MPI_Datatype sendtype,
 {
     int err;
     size_t recvtype_size;
+    opal_timer_t timer = 0; /* SPC */
 
     SPC_RECORD(OMPI_SPC_ALLTOALL, 1);
 
@@ -106,10 +107,15 @@ int MPI_Alltoall(const void *sendbuf, int sendcount, MPI_Datatype sendtype,
 
     OPAL_CR_ENTER_LIBRARY();
 
+    SPC_TIMER_START(OMPI_SPC_TIME_ALLTOALL, &timer);
+
     /* Invoke the coll component to perform the back-end operation */
     err = comm->c_coll->coll_alltoall(sendbuf, sendcount, sendtype,
                                      recvbuf, recvcount, recvtype,
                                      comm, comm->c_coll->coll_alltoall_module);
+
+    SPC_TIMER_STOP(OMPI_SPC_TIME_ALLTOALL, &timer);
+
     OMPI_ERRHANDLER_RETURN(err, comm, err, FUNC_NAME);
 }
 
