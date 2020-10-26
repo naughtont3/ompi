@@ -65,6 +65,12 @@ int   ompi_coll_tuned_alltoall_large_msg = 3000;
 int   ompi_coll_tuned_alltoall_min_procs = 0; /* disable by default */
 int   ompi_coll_tuned_alltoall_max_requests  = 0; /* no limit for alltoall by default */
 
+
+/* Congestion variables */
+int ompi_coll_tuned_alltoall_congest_algorithm = 3;       /* Default algo during congestion */
+int ompi_coll_tuned_alltoall_congest_threshold = 100;     /* Threshold to decide on congestion */
+
+
 /* Disable by default */
 int   ompi_coll_tuned_scatter_intermediate_msg = 0;
 int   ompi_coll_tuned_scatter_large_msg = 0;
@@ -190,6 +196,24 @@ static int tuned_register(void)
                                            OPAL_INFO_LVL_6,
                                            MCA_BASE_VAR_SCOPE_READONLY,
                                            &ompi_coll_tuned_dynamic_rules_filename);
+
+    ompi_coll_tuned_alltoall_congest_threshold = 100;
+    (void) mca_base_component_var_register(&mca_coll_tuned_component.super.collm_version,
+                                           "alltoall_congest_threshold",
+                                           "Threshold (if SPCs enabled) to decide if congestion present in alltoall algorithm (integer: num cycles diff)",
+                                           MCA_BASE_VAR_TYPE_INT, NULL, 0, 0,
+                                           OPAL_INFO_LVL_6,
+                                           MCA_BASE_VAR_SCOPE_READONLY,
+                                           &ompi_coll_tuned_alltoall_congest_threshold);
+
+    ompi_coll_tuned_alltoall_congest_algorithm = 3;
+    (void) mca_base_component_var_register(&mca_coll_tuned_component.super.collm_version,
+                                           "alltoall_congest_algorithm",
+                                           "Algorithm to use when congestion is present in alltoall operation (integer: 0-5)",
+                                           MCA_BASE_VAR_TYPE_INT, NULL, 0, 0,
+                                           OPAL_INFO_LVL_6,
+                                           MCA_BASE_VAR_SCOPE_READONLY,
+                                           &ompi_coll_tuned_alltoall_congest_algorithm);
 
     /* register forced params */
     ompi_coll_tuned_allreduce_intra_check_forced_init(&ompi_coll_tuned_forced_params[ALLREDUCE]);

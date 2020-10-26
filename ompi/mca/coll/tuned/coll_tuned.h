@@ -47,6 +47,10 @@ extern int   ompi_coll_tuned_scatter_large_msg;
 extern int   ompi_coll_tuned_scatter_min_procs;
 extern int   ompi_coll_tuned_scatter_blocking_send_ratio;
 
+/* Congestion variables */
+extern int ompi_coll_tuned_alltoall_congest_algorithm;
+extern int ompi_coll_tuned_alltoall_congest_threshold;
+
 /* forced algorithm choices */
 /* this structure is for storing the indexes to the forced algorithm mca params... */
 /* we get these at component query (so that registered values appear in ompi_infoi) */
