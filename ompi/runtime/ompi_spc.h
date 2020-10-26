@@ -188,6 +188,8 @@ void ompi_spc_user_or_mpi(int tag, ompi_spc_value_t value, unsigned int user_enu
 void ompi_spc_cycles_to_usecs(ompi_spc_value_t *cycles);
 void ompi_spc_update_watermark(unsigned int watermark_enum, unsigned int value_enum);
 
+int ompi_spc_value_diff(char *spc_name, long long spc_prev_value, long long *spc_new_value, long long *spc_diff);
+
 /* Macros for using the SPC utility functions throughout the codebase.
  * If SPC_ENABLE is not 1, the macros become no-ops.
  */

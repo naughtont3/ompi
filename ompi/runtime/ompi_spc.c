@@ -21,6 +21,7 @@
 static opal_timer_t sys_clock_freq_mhz = 0;
 
 static void ompi_spc_dump(void);
+//static void ompi_spc_dump_diff(char *spc_name, long long spc_prev_value);
 
 /* Array for converting from SPC indices to MPI_T indices */
 static bool mpi_t_enabled = false;
@@ -405,11 +406,157 @@ static void ompi_spc_dump(void)
     ompi_spc_comm->c_coll->coll_barrier(ompi_spc_comm, ompi_spc_comm->c_coll->coll_barrier_module);
 }
 
+
+/*
+ * Congestion - helper function for checking diff w/ SPCs
+ *
+ * Given a specific SPC name and prior value, we
+ * get the new value and return the difference between
+ * the prior and new values (diff = new - prev).
+ * If do not care about the diff you can pass NULL for spc_diff,
+ * and will simply get the new_value.
+ *
+ * Note: Return the value as-is (do not convert cycles, etc.)
+ *
+ * On success, return MPI_SUCCESS, otherwise return -1.
+ */
+int ompi_spc_value_diff(char *spc_name,
+                               long long spc_prev_value,
+                               long long *spc_new_value,
+                               long long *spc_diff)
+{
+    int i;
+    long long value = -1;
+    int found = 0;
+
+    if (NULL == ompi_spc_events) {
+        //fprintf(stderr, " #-- DBG: WARN: SPC system not available\n");
+        return -1;
+    }
+
+    /* Find the index of given SPC. */
+    for(i = 0; i < OMPI_SPC_NUM_COUNTERS; i++) {
+        if( 0 == strcmp(ompi_spc_events[i].name, spc_name) ) {
+
+            //OPAL_THREAD_LOCK(&_spc_mutex);
+
+            /*
+             * TJN: Not using SPC_CYCLES_TO_USECS() macro b/c it
+             *      appears to have side-effects. :-/
+             */
+            if( IS_SPC_BIT_SET(ompi_spc_timer_event, i) ) {
+                value = (long long)ompi_spc_events[i].value;
+                //fprintf(stderr, " #-- DBG: %s (tmp) value = %d  sys_clock_freq_mhz = %d\n", spc_name, value, sys_clock_freq_mhz);
+                value = value / sys_clock_freq_mhz;
+            }
+
+            //fprintf(stderr, " #-- DBG: %s value = %d\n", spc_name, value);
+
+            //OPAL_THREAD_UNLOCK(&_spc_mutex);
+
+            found = 1;
+            break;
+        }
+    }
+
+    if (found != 1) {
+        printf("Error: Failed to find SPC counter '%s'\n", spc_name);
+        return -1;
+    }
+
+    *spc_new_value = value;
+
+    if (NULL != spc_diff) {
+        *spc_diff = value - spc_prev_value;
+    }
+
+    return MPI_SUCCESS;
+}
+
+#if 0
+/*
+ * Congestion - helper function for dumping diff SPC at all ranks.
+ *
+ * Gathers a given SPC data onto rank 0 of MPI_COMM_WORLD
+ * and compare with previous counter value.  Showing diff to stdout.
+ */
+static void ompi_spc_dump_diff(char *spc_name, long long spc_prev_value)
+{
+    int i, j, world_size, offset;
+    long long *recv_buffer = NULL;
+    long long send_data;
+    int index = -1;
+
+    int rank = ompi_comm_rank(ompi_spc_comm);
+    world_size = ompi_comm_size(ompi_spc_comm);
+
+    /* Find the index of given SPC. */
+    for(i = 0; i < OMPI_SPC_NUM_COUNTERS; i++) {
+        if (0 == strcmp(spc_name, ompi_spc_events[i].name)) {
+            //printf("DBG: spc[%d].name = %s\n", i, ompi_spc_events[i].name);
+            index = i;
+            /* If time-based counter: Convert from cycles to usecs */
+            /* XXX: TJN: If called again (after ompi_spc_dump(), will
+             *      clobber data as SPC_CYCLES_TO_USECS() writes back
+             *      to value again.  And we get another divide-by small
+             *      result (usually results in value being 0).
+             */
+//            if( IS_SPC_BIT_SET(ompi_spc_timer_event, i) ) {
+//                SPC_CYCLES_TO_USECS(&ompi_spc_events[i].value);
+//            }
+            break;
+        }
+    }
+
+    if (index == -1) {
+        printf("Error: Failed to find SPC counter '%s'\n", spc_name);
+        return;
+    }
+
+    send_data = (long long)ompi_spc_events[index].value;
+
+    //opal_output(0, "(%d) DBG: send_data = %lld\n", rank, send_data);
+
+    if( 0 == rank ) {
+        recv_buffer = (long long*)malloc(world_size * 1 * sizeof(long long));
+        if (NULL == recv_buffer) {
+            opal_show_help("help-mpi-runtime.txt", "lib-call-fail", true,
+                           "malloc", __FILE__, __LINE__);
+            return;
+        }
+    }
+    (void)ompi_spc_comm->c_coll->coll_gather(&send_data, 1, MPI_LONG_LONG,
+                                             recv_buffer, 1, MPI_LONG_LONG,
+                                             0, ompi_spc_comm,
+                                             ompi_spc_comm->c_coll->coll_gather_module);
+
+    /* Once rank 0 has the information, compare and print the diff for each rank in order */
+    if(rank == 0) {
+        opal_output(0, "Open MPI Software-based Performance Counter Diff:\n");
+        for(j = 0; j < world_size; j++) {
+            opal_output(0, "MPI_COMM_WORLD Rank %d:\n", j);
+
+            opal_output(0, "%s: %lld (previous) -> %lld (current)\n",
+                           ompi_spc_events[index].name,
+                           spc_prev_value,
+                           recv_buffer[j]);
+        }
+        printf("###########################################################################\n");
+
+        if (NULL != recv_buffer)
+            free(recv_buffer);
+    }
+
+    ompi_spc_comm->c_coll->coll_barrier(ompi_spc_comm, ompi_spc_comm->c_coll->coll_barrier_module);
+}
+#endif
+
 /* Frees any dynamically alocated OMPI SPC data structures */
 void ompi_spc_fini(void)
 {
     if (SPC_ENABLE == 1 && ompi_mpi_spc_dump_enabled) {
         ompi_spc_dump();
+        //ompi_spc_dump_diff("OMPI_SPC_TIME_ALLTOALL", 0.0);
     }
 
     free(ompi_spc_events); ompi_spc_events = NULL;

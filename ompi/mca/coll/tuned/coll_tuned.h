@@ -188,6 +188,10 @@ int ompi_coll_tuned_scan_intra_check_forced_init (coll_tuned_force_algorithm_mca
 
 int mca_coll_tuned_ft_event(int state);
 
+/* Congestion functions */
+int ompi_coll_tuned_get_congest_algo(void);
+int ompi_coll_tuned_isCongested(struct ompi_communicator_t *comm);
+
 struct mca_coll_tuned_component_t {
 	/** Base coll component */
 	mca_coll_base_component_2_0_0_t super;

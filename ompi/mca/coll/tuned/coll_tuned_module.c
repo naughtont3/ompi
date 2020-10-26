@@ -27,6 +27,7 @@
 
 #include "mpi.h"
 #include "ompi/communicator/communicator.h"
+#include "ompi/runtime/ompi_spc.h"
 #include "ompi/mca/coll/coll.h"
 #include "ompi/mca/coll/base/base.h"
 #include "ompi/mca/coll/base/coll_base_topo.h"
@@ -119,6 +120,141 @@ ompi_coll_tuned_comm_query(struct ompi_communicator_t *comm, int *priority)
 /* We put all routines that handle the MCA user forced algorithm and parameter choices here */
 /* recheck the setting of forced, called on module create (i.e. for each new comm) */
 
+
+/* Congestion - past value for alltoall */
+static int _congest_spc_time_alltoall_past_value = 0;
+
+
+
+/*
+ * Congestion - detection function
+ *
+ * TJN: This is a very simplistic congestion detection method.
+ *      It has several flaws, but shows a basic threshold based
+ *      method for determining "congested".
+ *      The threshold can be adjust via an MCA parameter.
+ *      There are also a few magic envvars to override things
+ *      for testing.
+ *
+ *      NOTE: This is specific to Alltoall for now.
+ *
+ *      - MCA: coll_tuned_alltoall_congest_threshold
+ *          The threshold at which point we decide the difference
+ *          in current/past value of SPC indicates "congested".
+ *
+ *      - EnvVar: 'OMPIX_SKIP_CONGESTED_ALLREDUCE'
+ *          This will not detect congestion, becasue only do a
+ *          local check and need to have concensus across the comm.
+ *          This is just a way to show the difference at each
+ *          rank, but always returns "not-congested" overall.
+ *
+ *      - EnvVar: 'OMPIX_FORCE_CONGESTED'
+ *          This is just a hardcoded flag to force the congestion
+ *          check to return true regardless of the actual status
+ *          of the network.
+ */
+int
+ompi_coll_tuned_isCongested(struct ompi_communicator_t *comm)
+{
+    long long new_value = 0;
+    long long diff = 0;
+    int rc;
+    int comm_rank;
+    long long diff_max = 0;
+
+    /* Get our local congestion info */
+    rc = ompi_spc_value_diff("OMPI_SPC_TIME_ALLTOALL",
+                    _congest_spc_time_alltoall_past_value,
+                    &new_value,
+                    &diff);
+    if (0 != rc) {
+        return 0; /* Ignore error for now (treat as not congested) */
+    }
+
+    comm_rank = ompi_comm_rank(comm);
+
+    OPAL_OUTPUT((ompi_coll_tuned_stream, " #-- DBG: (Rank %d) MY-CONGESTION-INFO (thresh=%d, past_value=%d, new_value=%d, diff=%d)\n", comm_rank, ompi_coll_tuned_alltoall_congest_threshold, _congest_spc_time_alltoall_past_value, new_value, diff));
+    fprintf(stderr, " #-- DBG: (Rank %d) MY-CONGESTION-INFO (thresh=%d, past_value=%d, new_value=%d, diff=%d)\n", comm_rank, ompi_coll_tuned_alltoall_congest_threshold, _congest_spc_time_alltoall_past_value, new_value, diff);
+
+    _congest_spc_time_alltoall_past_value = new_value;
+
+    /*
+     * TJN: Skip the allreduce and do *only* the local diff check,
+     *      but in this case we will not adjust the algorithm, just
+     *      report the difference and move on.
+     */
+    if (NULL != getenv("OMPIX_SKIP_CONGESTED_ALLREDUCE")) {
+
+        /* diff: (local-only) Decide how different from past */
+        if ((0  != diff) && (diff  > ompi_coll_tuned_alltoall_congest_threshold)) {
+            OPAL_OUTPUT((ompi_coll_tuned_stream, " #-- DBG: (Rank %d) LOCAL-ONLY CONGESTION SKIP-ALLREDUCE (thresh=%d, new_value=%d, diff=%d)!\n", comm_rank, ompi_coll_tuned_alltoall_congest_threshold, new_value, diff));
+            fprintf(stderr, " #-- DBG: (Rank %d) LOCAL-ONLY CONGESTION SKIP-ALLREDUCE (thresh=%d, new_value=%d, diff=%d)!\n", comm_rank, ompi_coll_tuned_alltoall_congest_threshold, new_value, diff);
+
+            return 0;  /* Always return 'not congested' for this case */
+        }
+
+    } else {
+        comm_rank = ompi_comm_rank(comm);
+
+        /*
+         * Aggregate all of the information using MPI_Allreduce(MAX)
+         * on diff value to see if any rank in comm exceeded the
+         * max threshold.
+         *
+         * TODO TJN: Change this when we add congestion checks for MPI_Reduce()!
+         */
+        (void)comm->c_coll->coll_allreduce(&diff, &diff_max,
+                                        1, MPI_LONG_LONG, MPI_MAX,
+                                        comm,
+                                        comm->c_coll->coll_allreduce_module);
+
+        (void)comm->c_coll->coll_barrier(comm, comm->c_coll->coll_barrier_module);
+
+        /* diff_max: (global max) Decide how different from past */
+        if ((0  != diff_max) && (diff_max  > ompi_coll_tuned_alltoall_congest_threshold)) {
+            OPAL_OUTPUT((ompi_coll_tuned_stream, " #-- DBG: (Rank %d) EXCEED CONGESTION THRESHOLD -- CONGESTED (thresh=%d, new_value=%d, diff=%d, diff_max=%d)!\n", comm_rank, ompi_coll_tuned_alltoall_congest_threshold, new_value, diff, diff_max));
+            //fprintf(stderr, " #-- DBG: (Rank %d) EXCEED CONGESTION THRESHOLD -- CONGESTED (thresh=%d, new_value=%d, diff=%d, diff_max=%d)!\n", comm_rank, ompi_coll_tuned_alltoall_congest_threshold, new_value, diff, diff_max);
+            return 1;  /* Yes congested */
+        }
+    }
+
+#if 1
+    /* XXX: for now if have env var set we call it congested */
+    if (NULL != getenv("OMPIX_FORCE_CONGESTED")) {
+        fprintf(stderr, " #-- DBG: TJN_HACK_CONGESTED CONGESTION FORCED -- CONGESTED!\n");
+        return 1;  /* Yes congested */
+    }
+#endif
+
+    return 0; /* Not congested */
+}
+
+/*
+ * Congestion - get algorithm to use when congested
+ *
+ * TJN: This is a very simplistic method to return the registered
+ *      default algorithm to use when congestion is detected.
+ *      This is set via an MCA parameter, which can be overriden
+ *      at runtime.
+ *
+ *      NOTE: This is specific to Alltoall for now.
+ *
+ *      - MCA: coll_tuned_alltoall_congest_algorithm
+ *          The alltoall algorithm to use when we detect
+ *          congestion, i.e., ompi_coll_tuned_isCongested() is true.
+ */
+int
+ompi_coll_tuned_get_congest_algo(void)
+{
+    int alg = -1;
+
+    /* TODO: Should check this is a valid alltoall algo */
+    alg = ompi_coll_tuned_alltoall_congest_algorithm;
+
+    return (alg);
+}
+
+
 static int
 ompi_coll_tuned_forced_getvalues( enum COLLTYPE type,
                                   coll_tuned_force_algorithm_params_t *forced_values )
@@ -135,6 +271,30 @@ ompi_coll_tuned_forced_getvalues( enum COLLTYPE type,
      */
     mca_base_var_get_value(mca_params->algorithm_param_index, &tmp, NULL, NULL);
     forced_values->algorithm = tmp ? tmp[0] : 0;
+
+#if 0
+    /* Congestion stuff (likely cut this) */
+    /* TJN: We are only changing the algorithm for ALLTOALL (if congested) */
+    if( ALLTOALL == type ) {
+
+        //fprintf(stderr, " #-- DBG: FORCED_GETVALUES (cur) algorithm = %d\n",
+        //  forced_values->algorithm);
+
+        if ( ompi_coll_tuned_isCongested() ) {
+            int new_alg;
+            new_alg = ompi_coll_tuned_get_congest_algo();
+            if (new_alg >= 0) {
+                forced_values->algorithm = new_alg;
+
+                //fprintf(stderr, " #-- DBG: HACK OVERRIDE ALLTOALL FORCED_GETVALUES algorithm = %d (new_alg=%d)\n",
+                //      forced_values->algorithm, new_alg);
+            }
+        }
+
+        //fprintf(stderr, " #-- DBG: FORCED_GETVALUES (new) algorithm = %d\n",
+        //  forced_values->algorithm);
+    }
+#endif
 
     if( BARRIER != type ) {
         mca_base_var_get_value(mca_params->segsize_param_index, &tmp, NULL, NULL);

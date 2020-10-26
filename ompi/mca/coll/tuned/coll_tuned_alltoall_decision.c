@@ -161,8 +161,33 @@ int ompi_coll_tuned_alltoall_intra_do_this(const void *sbuf, int scount,
                                            int algorithm, int faninout, int segsize,
                                            int max_requests)
 {
+
+    /*
+     * TJN: Check if congested, and if so change the algorithm.
+     * TODO: Should likely make this coll-type specific,
+     *       i.e., ompi_coll_tuned_alltoall_isCongested()
+     *       They can share code, but likely different heuristics
+     *       for different coll types.
+     */
+    if ( ompi_coll_tuned_isCongested(comm) ) {
+        int new_alg;
+        int comm_rank = 0;
+        comm_rank = ompi_comm_rank(comm);
+
+        new_alg = ompi_coll_tuned_get_congest_algo();
+
+        if (new_alg >= 0) {
+            OPAL_OUTPUT((ompi_coll_tuned_stream, " # (Rank %d) DBG: intra_do_this CONGESTED OVERRIDE algorithm = %d with new_alg = %d\n", comm_rank, algorithm, new_alg));
+            //fprintf(stderr, " # (Rank %d) DBG: intra_do_this CONGESTED OVERRIDE algorithm = %d with new_alg = %d\n", comm_rank, algorithm, new_alg);
+            algorithm = new_alg;
+        }
+    }
+
     OPAL_OUTPUT((ompi_coll_tuned_stream,"coll:tuned:alltoall_intra_do_this selected algorithm %d topo faninout %d segsize %d",
                  algorithm, faninout, segsize));
+
+    //fprintf(stderr, " # (Rank %d) DBG: coll:tuned:alltoall_intra_do_this selected algorithm %d topo faninout %d segsize %d\n",
+    //           comm_rank, algorithm, faninout, segsize);
 
     switch (algorithm) {
     case (0):
