@@ -162,6 +162,8 @@ ompi_coll_tuned_isCongested(struct ompi_communicator_t *comm)
     int comm_rank;
     long long diff_max = 0;
 
+    OPAL_OUTPUT((ompi_coll_tuned_stream, "coll:tuned: alltoall_congest_threshold = %d\n", ompi_coll_tuned_alltoall_congest_threshold));
+
     /* Get our local congestion info */
     rc = ompi_spc_value_diff("OMPI_SPC_TIME_ALLTOALL",
                     _congest_spc_time_alltoall_past_value,
@@ -174,7 +176,10 @@ ompi_coll_tuned_isCongested(struct ompi_communicator_t *comm)
     comm_rank = ompi_comm_rank(comm);
 
     OPAL_OUTPUT((ompi_coll_tuned_stream, " #-- DBG: (Rank %d) MY-CONGESTION-INFO (thresh=%d, past_value=%d, new_value=%d, diff=%d)\n", comm_rank, ompi_coll_tuned_alltoall_congest_threshold, _congest_spc_time_alltoall_past_value, new_value, diff));
-    fprintf(stderr, " #-- DBG: (Rank %d) MY-CONGESTION-INFO (thresh=%d, past_value=%d, new_value=%d, diff=%d)\n", comm_rank, ompi_coll_tuned_alltoall_congest_threshold, _congest_spc_time_alltoall_past_value, new_value, diff);
+    /* TJN: quick hack to see congest diff info per rank (w/o full verbose) */
+    if (NULL != getenv("OMPIX_SHOW_CONGEST_INFO")) {
+        fprintf(stderr, " #-- DBG: (Rank %d) MY-CONGESTION-INFO (thresh=%d, past_value=%d, new_value=%d, diff=%d)\n", comm_rank, ompi_coll_tuned_alltoall_congest_threshold, _congest_spc_time_alltoall_past_value, new_value, diff);
+    }
 
     _congest_spc_time_alltoall_past_value = new_value;
 
@@ -250,6 +255,8 @@ ompi_coll_tuned_get_congest_algo(void)
 
     /* TODO: Should check this is a valid alltoall algo */
     alg = ompi_coll_tuned_alltoall_congest_algorithm;
+
+    OPAL_OUTPUT((ompi_coll_tuned_stream, "coll:tuned: alltoall_congest_algorithm = %d\n", alg));
 
     return (alg);
 }
