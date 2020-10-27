@@ -181,6 +181,14 @@ ompi_coll_tuned_isCongested(struct ompi_communicator_t *comm)
         fprintf(stderr, " #-- DBG: (Rank %d) MY-CONGESTION-INFO (thresh=%d, past_value=%d, new_value=%d, diff=%d)\n", comm_rank, ompi_coll_tuned_alltoall_congest_threshold, _congest_spc_time_alltoall_past_value, new_value, diff);
     }
 
+    /* Check if this is our first measurement */
+    if ((diff == new_value) && (0 == _congest_spc_time_alltoall_past_value)) {
+
+        _congest_spc_time_alltoall_past_value = new_value;
+
+        return 0; /* Ignore first measurement as not congested */
+    }
+
     _congest_spc_time_alltoall_past_value = new_value;
 
     /*
