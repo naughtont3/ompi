@@ -22,7 +22,7 @@ stages:
     # exception of the TOKEN if it makes it easier to manage.
     BUILDSTATUS_OWNER: naughtont3
     BUILDSTATUS_PROJECT: ompi
-    BUILDSTATUS_APIURL: https://developer.github.com/v3/repos/statuses/
+    BUILDSTATUS_APIURL: https://api.github.com
     BUILDSTATUS_JOB: OLCF
   before_script:
     - ml py-virtualenv python/3.7.0
