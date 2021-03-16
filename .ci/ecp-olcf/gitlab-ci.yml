@@ -6,6 +6,10 @@ variables:
   EXTERNAL_TMPDIR: /gpfs/wolf/proj-shared/stf010/ci/ompi-x/naughtont3-ompi
 
 
+#
+# NOTE: See also https://ecp-ci.gitlab.io/docs/guides/build-status-gitlab.html
+#
+
 #### Build and Test using GPFS ####
 stages:
   - .pre
