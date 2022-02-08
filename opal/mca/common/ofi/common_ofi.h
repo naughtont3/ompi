@@ -100,6 +100,8 @@ OPAL_DECLSPEC int opal_common_ofi_is_in_list(char **list, char *item);
 /**
  * Selects NIC (provider) based on hardware locality
  *
+ * In multi-nic situations, use hardware topology to pick the "best"
+ * of the selected NICs.
  * There are 3 main cases that this covers:
  *
  *      1. If the first provider passed into this function is the only valid
@@ -108,52 +110,46 @@ OPAL_DECLSPEC int opal_common_ofi_is_in_list(char **list, char *item);
  *      2. If there is more than 1 provider that matches the type of the first
  *      provider in the list, and the BDF data
  *      is available then a provider is selected based on locality of device
- *      cpuset and process cpuset and tries to ensure that processes are distributed
- *      evenly across NICs. This has two separate cases:
+ *      cpuset and process cpuset and tries to ensure that processes
+ *      are distributed evenly across NICs. This has two separate
+ *      cases:
  *
  *          i. There is one or more provider local to the process:
  *
- *              (local rank % number of providers of the same type that share the process cpuset)
- *              is used to select one of these providers.
+ *              (local rank % number of providers of the same type
+ *              that share the process cpuset) is used to select one
+ *              of these providers.
  *
  *          ii. There is no provider that is local to the process:
  *
  *              (local rank % number of providers of the same type)
  *              is used to select one of these providers
  *
- *      3. If there is more than 1 providers of the same type in the list, and the BDF data
- *      is not available (the ofi version does not support fi_info.nic or the
- *      provider does not support BDF) then (local rank % number of providers of the same type)
- *      is used to select one of these providers
+ *      3. If there is more than 1 providers of the same type in the
+ *      list, and the BDF data is not available (the ofi version does
+ *      not support fi_info.nic or the provider does not support BDF)
+ *      then (local rank % number of providers of the same type) is
+ *      used to select one of these providers
  *
- *      @param provider_list (IN)   struct fi_info* An initially selected
- *                                  provider NIC. The provider name and
- *                                  attributes are used to restrict NIC
- *                                  selection. This provider is returned if the
- *                                  NIC selection fails.
+ * @param provider_list (IN)   struct fi_info* An initially selected
+ *                             provider NIC. The provider name and
+ *                             attributes are used to restrict NIC
+ *                             selection. This provider is returned if the
+ *                             NIC selection fails.
  *
- *      @param package_rank (IN)   uint32_t The rank of the process. Used to
- *                                  select one valid NIC if there is a case
- *                                  where more than one can be selected. This
- *                                  could occur when more than one provider
- *                                  shares the same cpuset as the process.
- *                                  This could either be a package_rank if one is
- *                                  successfully calculated, or the process id.
- *
- *      @param provider (OUT)       struct fi_info* object with the selected
- *                                  provider if the selection succeeds
- *                                  if the selection fails, returns the fi_info
- *                                  object that was initially provided.
+ * @param provider (OUT)       struct fi_info* object with the selected
+ *                             provider if the selection succeeds
+ *                             if the selection fails, returns the fi_info
+ *                             object that was initially provided.
  *
  * All errors should be recoverable and will return the initially provided
  * provider. However, if an error occurs we can no longer guarantee
  * that the provider returned is local to the process or that the processes will
  * balance across available NICs.
+ *
  */
-OPAL_DECLSPEC struct fi_info* opal_mca_common_ofi_select_provider(struct fi_info *provider_list,
-                                                                  int32_t num_local_peers,
-                                                                  uint16_t my_local_rank,
-                                                                  char *cpuset, uint32_t pid);
+OPAL_DECLSPEC struct fi_info *opal_mca_common_ofi_select_provider(struct fi_info *provider_list,
+                                                                  opal_process_info_t *process_info);
 
 END_C_DECLS
 
