@@ -20,9 +20,16 @@
 #ifndef OMPI_MTL_PORTALS_REQUEST_H
 #define OMPI_MTL_PORTALS_REQUEST_H
 
+#include "ompi_config.h"
+
 #include "opal/datatype/opal_convertor.h"
-#include "ompi/mca/mtl/mtl.h"
 #include "opal/mca/timer/base/base.h"
+
+#include "ompi/mca/mtl/mtl.h"
+
+#include "mtl_portals4.h"
+
+#include <portals4.h>
 
 struct ompi_mtl_portals4_message_t;
 struct ompi_mtl_portals4_pending_request_t;
@@ -54,8 +61,8 @@ struct ompi_mtl_portals4_isend_request_t {
     struct ompi_mtl_portals4_pending_request_t *pending;
 #endif
     ptl_size_t length;
-    int32_t pending_get;
-    int32_t event_count;
+    opal_atomic_int32_t pending_get;
+    opal_atomic_int32_t event_count;
 };
 typedef struct ompi_mtl_portals4_isend_request_t ompi_mtl_portals4_isend_request_t;
 
@@ -76,7 +83,7 @@ struct ompi_mtl_portals4_recv_request_t {
     void *delivery_ptr;
     size_t delivery_len;
     volatile bool req_started;
-    int32_t pending_reply;
+    opal_atomic_int32_t pending_reply;
 #if OPAL_ENABLE_DEBUG
     uint64_t opcount;
     ptl_hdr_data_t hdr_data;

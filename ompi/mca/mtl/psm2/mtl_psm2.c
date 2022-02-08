@@ -11,11 +11,13 @@
  * Copyright (c) 2004-2006 The Regents of the University of California.
  *                         All rights reserved.
  * Copyright (c) 2006      QLogic Corporation. All rights reserved.
- * Copyright (c) 2013-2017 Intel, Inc. All rights reserved
+ * Copyright (c) 2013-2020 Intel, Inc.  All rights reserved.
  * Copyright (c) 2014      Los Alamos National Security, LLC. All rights
  *                         reserved.
  * Copyright (c) 2016      Research Organization for Information Science
  *                         and Technology (RIST). All rights reserved.
+ * Copyright (c) 2021      Nanook Consulting.  All rights reserved.
+ *
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -25,10 +27,11 @@
 
 #include "ompi_config.h"
 
-#include "opal/mca/pmix/pmix.h"
+#include "opal/mca/pmix/pmix-internal.h"
 #include "ompi/mca/mtl/mtl.h"
 #include "ompi/mca/mtl/base/mtl_base_datatype.h"
 #include "opal/util/show_help.h"
+#include "opal/util/minmax.h"
 #include "ompi/proc/proc.h"
 
 #include "mtl_psm2.h"
@@ -101,7 +104,20 @@ int ompi_mtl_psm2_module_init(int local_rank, int num_local_procs) {
     char env_string[256];
     int rc;
 
-    generated_key = getenv(OPAL_MCA_PREFIX"orte_precondition_transports");
+    opal_process_name_t pname;
+
+    generated_key = NULL;
+    pname.jobid = opal_process_info.my_name.jobid;
+    pname.vpid = OPAL_VPID_WILDCARD;
+    OPAL_MODEX_RECV_VALUE_OPTIONAL(rc, PMIX_CREDENTIAL, &pname,
+                                    (char**)&generated_key, PMIX_STRING);
+
+    char *tmp_key;
+    if (PMIX_SUCCESS != rc || NULL == generated_key) {
+        if (NULL != (tmp_key = getenv("OMPI_MCA_orte_precondition_transports"))) {
+            generated_key = strdup(tmp_key);
+        }
+     }
     memset(uu, 0, sizeof(psm2_uuid_t));
 
     if (!generated_key || (strlen(generated_key) != 33) ||
@@ -111,9 +127,12 @@ int ompi_mtl_psm2_module_init(int local_rank, int num_local_procs) {
 		     "no uuid present", true,
 		     generated_key ? "could not be parsed from" :
 		     "not present in", ompi_process_info.nodename);
+      free(generated_key);
       return OMPI_ERROR;
 
     }
+
+    free(generated_key);
 
     /* Handle our own errors for opening endpoints */
     psm2_error_register_handler(ompi_mtl_psm2.ep, ompi_mtl_psm2_errhandler);
@@ -159,7 +178,7 @@ int ompi_mtl_psm2_module_init(int local_rank, int num_local_procs) {
     ompi_mtl_psm2.epid = epid;
     ompi_mtl_psm2.mq   = mq;
 
-    OPAL_MODEX_SEND(rc, OPAL_PMIX_GLOBAL,
+    OPAL_MODEX_SEND(rc, PMIX_GLOBAL,
                     &mca_mtl_psm2_component.super.mtl_version,
                     &ompi_mtl_psm2.epid,
                     sizeof(psm2_epid_t));
@@ -232,14 +251,6 @@ ompi_mtl_psm2_connect_error_msg(psm2_error_t err)
     }
 }
 
-#ifndef min
-#  define min(a,b) ((a) < (b) ? (a) : (b))
-#endif
-
-#ifndef max
-#  define max(a,b) ((a) > (b) ? (a) : (b))
-#endif
-
 int
 ompi_mtl_psm2_add_procs(struct mca_mtl_base_module_t *mtl,
                       size_t nprocs,
@@ -294,7 +305,7 @@ ompi_mtl_psm2_add_procs(struct mca_mtl_base_module_t *mtl,
 	mask_in[i] = 1;
     }
 
-    timeout_in_secs = max(ompi_mtl_psm2.connect_timeout, 0.5 * nprocs);
+    timeout_in_secs = opal_max(ompi_mtl_psm2.connect_timeout, 0.5 * nprocs);
 
     psm2_error_register_handler(ompi_mtl_psm2.ep, PSM2_ERRHANDLER_NOP);
 
@@ -324,8 +335,9 @@ ompi_mtl_psm2_add_procs(struct mca_mtl_base_module_t *mtl,
 			    errstr ? errstr : "unknown connect error");
 		for (j = 0; j < (int) nprocs; j++) {
 		  if (errs_out[j] == thiserr) {
-                      opal_output(0, " %s", (NULL == procs[j]->super.proc_hostname) ?
-                                  "unknown" : procs[j]->super.proc_hostname);
+                      char *errhost = opal_get_proc_hostname(&procs[j]->super);
+                      opal_output(0, " %s", errhost);
+                      free(errhost);
 		  }
 		}
 		opal_output(0, "\n");

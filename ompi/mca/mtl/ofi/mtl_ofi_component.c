@@ -6,7 +6,7 @@
  * Copyright (c) 2015-2016 Los Alamos National Security, LLC.  All rights
  *                         reserved.
  * Copyright (c) 2018-2021 Amazon.com, Inc. or its affiliates.  All Rights reserved.
- * Copyright (c) 2020      Triad National Security, LLC. All rights
+ * Copyright (c) 2020-2021 Triad National Security, LLC. All rights
  *                         reserved.
  * $COPYRIGHT$
  *
@@ -20,6 +20,9 @@
 #include "opal/util/argv.h"
 #include "opal/util/printf.h"
 #include "opal/mca/common/ofi/common_ofi.h"
+#if OPAL_CUDA_SUPPORT
+#include "opal/mca/common/cuda/common_cuda.h"
+#endif /* OPAL_CUDA_SUPPORT */
 
 static int ompi_mtl_ofi_component_open(void);
 static int ompi_mtl_ofi_component_query(mca_base_module_t **module, int *priority);
@@ -150,7 +153,7 @@ ompi_mtl_ofi_component_register(void)
     }
 
     ofi_tag_mode = MTL_OFI_TAG_AUTO;
-    asprintf(&desc, "Mode specifying how many bits to use for various MPI values in OFI/Libfabric"
+    opal_asprintf(&desc, "Mode specifying how many bits to use for various MPI values in OFI/Libfabric"
             " communications. Some Libfabric provider network types can support most of Open MPI"
             " needs; others can only supply a limited number of bits, which then must be split"
             " across the MPI communicator ID, MPI source rank, and MPI tag. Three different"
@@ -333,7 +336,7 @@ select_ofi_provider(struct fi_info *providers,
     }
 
     opal_output_verbose(1, opal_common_ofi.output,
-                        "%s:%d: mtl:ofi:prov: %s\n",
+                        "%s:%d: mtl:ofi:provider: %s\n",
                         __FILE__, __LINE__,
                         (prov ? prov->fabric_attr->prov_name : "none"));
 
@@ -356,12 +359,9 @@ select_ofi_provider(struct fi_info *providers,
       * process id.
       */
     if (NULL != prov) {
-        prov = opal_mca_common_ofi_select_provider(prov, ompi_process_info.num_local_peers,
-                                                   ompi_process_info.my_local_rank,
-                                                   ompi_process_info.cpuset,
-                                                   ompi_process_info.pid);
-        opal_output_verbose(1, ompi_mtl_base_framework.framework_output,
-                            "%s:%d: mtl:ofi:provider: %s\n",
+        prov = opal_mca_common_ofi_select_provider(prov, &ompi_process_info);
+        opal_output_verbose(1, opal_common_ofi.output,
+                            "%s:%d: mtl:ofi:provider:domain: %s\n",
                             __FILE__, __LINE__,
                             (prov ? prov->domain_attr->name : "none"));
     }
@@ -514,6 +514,37 @@ static int ompi_mtl_ofi_init_regular_ep(struct fi_info * prov, int universe_size
         return ret;
     }
 
+#if OPAL_CUDA_SUPPORT && HAVE_DECL_FI_OPT_FI_HMEM_P2P
+    /*
+     * Set the FI_HMEM peer to peer option to ENABLED. This notifies Libfabric
+     * that the provider can decide whether to use device peer to peer support
+     * for network transfers, and allows copies if p2p is not supported.
+     *
+     * Note that this option may not be supported by the provider, so continue
+     * if FI_HMEM is supported by the provider but it does not support this
+     * setopt option. This setopt parameter was introduced in Libfabric 1.14.
+     *
+     * The version check is needed as one of the Libfabric setopt handlers
+     * incorrectly assumed all option values are size_t, which was also fixed
+     * in 1.14.
+     */
+    int setopt_val = FI_HMEM_P2P_ENABLED;
+
+    if (FI_VERSION_GE(fi_version(), FI_VERSION(1, 14))) {
+            ret = fi_setopt(&ompi_mtl_ofi.sep->fid,
+                            FI_OPT_ENDPOINT, FI_OPT_FI_HMEM_P2P,
+                            &setopt_val, sizeof(setopt_val));
+
+            if (!(0 == ret || -FI_ENOPROTOOPT == ret)) {
+                opal_show_help("help-mtl-ofi.txt", "OFI call fail", true,
+                               "fi_setopt",
+                               ompi_process_info.nodename, __FILE__, __LINE__,
+                               fi_strerror(-ret), -ret);
+                return ret;
+            }
+    }
+#endif /* OPAL_CUDA_SUPPORT && FI_OPT_FI_HMEM_P2P */
+
     /**
      * Create the objects that will be bound to the endpoint.
      * The objects include:
@@ -592,6 +623,15 @@ ompi_mtl_ofi_component_init(bool enable_progress_threads,
     }
 
     /**
+     * Note: API version 1.5 is the first version that supports
+     * FI_LOCAL_COMM / FI_REMOTE_COMM checking (and we definitely need
+     * that checking -- e.g., the shared memory provider supports
+     * intranode communication (FI_LOCAL_COMM), but not internode
+     * (FI_REMOTE_COMM), which is insufficient for MTL selection.
+     */
+    fi_version = FI_VERSION(1, 5);
+
+    /**
      * Hints to filter providers
      * See man fi_getinfo for a list of all filters
      * mode:  Select capabilities MTL is prepared to support.
@@ -608,11 +648,23 @@ ompi_mtl_ofi_component_init(bool enable_progress_threads,
                             __FILE__, __LINE__);
         goto error;
     }
+
+#if OPAL_CUDA_SUPPORT
+    /** If Open MPI is built with CUDA, request device transfer
+     *  capabilities */
+    hints->caps |= FI_HMEM;
+    hints->domain_attr->mr_mode |= FI_MR_HMEM;
+    /**
+     * Note: API version 1.9 is the first version that supports FI_HMEM
+     */
+    fi_version = FI_VERSION(1, 9);
+#endif /* OPAL_CUDA_SUPPORT */
+
     /* Make sure to get a RDM provider that can do the tagged matching
        interface and local communication and remote communication. */
     hints->mode               = FI_CONTEXT | FI_CONTEXT2;
     hints->ep_attr->type      = FI_EP_RDM;
-    hints->caps               = FI_HMEM | FI_TAGGED | FI_LOCAL_COMM | FI_REMOTE_COMM | FI_DIRECTED_RECV;
+    hints->caps               |= FI_TAGGED | FI_LOCAL_COMM | FI_REMOTE_COMM | FI_DIRECTED_RECV;
     hints->tx_attr->msg_order = FI_ORDER_SAS;
     hints->rx_attr->msg_order = FI_ORDER_SAS;
     hints->rx_attr->op_flags = FI_COMPLETION;
@@ -659,18 +711,6 @@ ompi_mtl_ofi_component_init(bool enable_progress_threads,
     }
 
     hints->domain_attr->resource_mgmt    = FI_RM_ENABLED;
-
-    /**
-     * FI_VERSION provides binary backward and forward compatibility support
-     * Specify the version of OFI is coded to, the provider will select struct
-     * layouts that are compatible with this version.
-     *
-     * Note: API version 1.5 is the first version that supports
-     * FI_LOCAL_COMM / FI_REMOTE_COMM checking (and we definitely need
-     * that checking -- e.g., some providers are suitable for RXD or
-     * RXM, but can't provide local communication).
-     */
-    fi_version = FI_VERSION(1, 5);
 
     /**
      * The EFA provider in Libfabric versions prior to 1.10 contains a bug
@@ -761,6 +801,15 @@ select_prov:
     include_list = NULL;
     opal_argv_free(exclude_list);
     exclude_list = NULL;
+
+#if OPAL_CUDA_SUPPORT
+    if (!(prov->caps & FI_HMEM)) {
+        opal_output_verbose(1, opal_common_ofi.output,
+                            "%s:%d: Libfabric provider does not support CUDA buffers\n",
+                            __FILE__, __LINE__);
+        goto error;
+    }
+#endif /* OPAL_CUDA_SUPPORT */
 
     /**
      * Select the format of the OFI tag
@@ -911,19 +960,6 @@ select_prov:
          prov->domain_attr->mr_mode = FI_MR_BASIC;
     }
 
-#if OPAL_CUDA_SUPPORT
-    /**
-     * Some providers do not require the use of the CUDA convertor
-     * in OMPI and its use will cause performance degradation. The
-     * following providers will disable it when selected.
-     */
-    if (!strncmp(prov->fabric_attr->prov_name, "psm3", 4)
-        || !strncmp(prov->fabric_attr->prov_name, "psm2", 4))
-    {
-        ompi_mtl_ofi.base.mtl_flags |= MCA_MTL_BASE_FLAG_CUDA_INIT_DISABLE;
-    }
-#endif /* OPAL_CUDA_SUPPORT */
-
     /**
      * Create the access domain, which is the physical or virtual network or
      * hardware port/collection of ports.  Returns a domain object that can be
@@ -1063,6 +1099,10 @@ select_prov:
      * Set the ANY_SRC address.
      */
     ompi_mtl_ofi.any_addr = FI_ADDR_UNSPEC;
+
+#if OPAL_CUDA_SUPPORT
+    mca_common_cuda_stage_one_init();
+#endif
 
     return &ompi_mtl_ofi.base;
 

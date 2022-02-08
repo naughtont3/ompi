@@ -10,9 +10,14 @@
 #ifndef MTL_PORTALS_FLOWCTL_H
 #define MTL_PORTALS_FLOWCTL_H
 
+#include "ompi_config.h"
+
 #include "opal/class/opal_free_list.h"
 
+#include "mtl_portals4.h"
 #include "mtl_portals4_request.h"
+
+#include <portals4.h>
 
 struct mca_mtl_base_endpoint_t;
 struct ompi_mtl_portals4_isend_request_t;
@@ -34,9 +39,9 @@ OBJ_CLASS_DECLARATION(ompi_mtl_portals4_pending_request_t);
 
 
 struct ompi_mtl_portals4_flowctl_t {
-    int32_t flowctl_active;
+    opal_atomic_int32_t flowctl_active;
 
-    int32_t send_slots;
+    opal_atomic_int32_t send_slots;
     int32_t max_send_slots;
     opal_list_t pending_sends;
     opal_free_list_t pending_fl;
@@ -46,7 +51,7 @@ struct ompi_mtl_portals4_flowctl_t {
 
     /** Flow control epoch counter.  Triggered events should be
         based on epoch counter. */
-    int64_t epoch_counter;
+    opal_atomic_int64_t epoch_counter;
 
     /** Flow control trigger CT.  Only has meaning at root. */
     ptl_handle_ct_t trigger_ct_h;
