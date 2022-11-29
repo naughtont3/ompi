@@ -183,6 +183,7 @@ typedef struct ompi_spc_s{
 void ompi_spc_init(void);
 void ompi_spc_fini(void);
 void ompi_spc_cycles_to_usecs(opal_timer_t *cycles);
+int  ompi_spc_value_diff(char *name, long long prev_value, long long *cur_value, long long *diff);
 
 /* An array of event structures to store the event data value, attachments, flags)
  * The memory is statically allocated to reduce the number of loads required.
@@ -214,6 +215,8 @@ ompi_spc_t ompi_spc_events[OMPI_SPC_NUM_COUNTERS] __opal_attribute_aligned__(siz
 #define SPC_UPDATE_WATERMARK(watermark_enum, value_enum) \
     ompi_spc_update_watermark(watermark_enum, value_enum)
 
+#define SPC_VALUE_DIFF(name, prev_value, cur_value, diff)  \
+    ompi_spc_value_diff(name, prev_value, *cur_value, diff)
 
 /* Records an update to a counter using an atomic add operation. */
 static inline
@@ -311,6 +314,9 @@ void ompi_spc_timer_stop(unsigned int event_id, opal_timer_t *cycles)
     ((void)0)
 
 #define SPC_UPDATE_WATERMARK(watermark_enum, value_enum) \
+    ((void)0)
+
+#define SPC_VALUE_DIFF(name, prev_value, cur_value, diff)  \
     ((void)0)
 
 #endif

@@ -399,6 +399,73 @@ static void ompi_spc_dump(void)
     ompi_spc_comm->c_coll->coll_barrier(ompi_spc_comm, ompi_spc_comm->c_coll->coll_barrier_module);
 }
 
+
+/*
+ * Helper function for checking diff with given SPC.
+ *
+ * Given a specific SPC name and prior value, we
+ * get the new value and return the difference between
+ * the prior and new values (diff = new - prev).
+ * If do not care about the diff you can pass NULL for spc_diff,
+ * and will simply get the new_value.
+ *
+ * Note: The value for timer events are converted to microseconds.
+ * Note: Any highwater events are reset after being read.
+ *
+ * On success, return MPI_SUCCESS, otherwise return -1.
+ */
+int ompi_spc_value_diff(char *spc_name,
+                        long long prev_value,
+                        long long *cur_value,
+                        long long *diff)
+{
+    int i;
+    long long value = -1;
+    int found = 0;
+
+    if (NULL == ompi_spc_events) {
+        //fprintf(stderr, " #-- DBG: WARN: SPC system not setup/available\n");
+        return -1;
+    }
+
+    /* Find the index of given SPC. */
+    for(i = 0; i < OMPI_SPC_NUM_COUNTERS; i++) {
+
+        /* If this is our requested counter */
+        if( 0 == strcmp(ompi_spc_events_desc[i].counter_name, spc_name) ) {
+
+            value = (long long)ompi_spc_events[i].value;
+
+            /* If this is a timer-based counter, convert from cycles to microseconds */
+            if( ompi_spc_events[i].is_timer_event ) {
+                value = ompi_spc_cycles_to_usecs_internal(value);
+            }
+
+            /* If this is a high watermark counter, reset it after it has been read */
+            if( ompi_spc_events[i].is_high_watermark) {
+                ompi_spc_events[i].value = 0;
+            }
+
+            found = 1;
+            break;
+        }
+    }
+
+    if (found != 1) {
+        fprintf(stderr, "Error: Failed to find SPC counter '%s'\n", spc_name);
+        return -1;
+    }
+
+    *cur_value = value;
+
+    if (NULL != diff) {
+        *diff = value - prev_value;
+    }
+
+    return MPI_SUCCESS;
+}
+
+
 /* Frees any dynamically allocated OMPI SPC data structures */
 void ompi_spc_fini(void)
 {
