@@ -144,6 +144,7 @@ static const ompi_spc_event_t ompi_spc_events_desc[OMPI_SPC_NUM_COUNTERS] = {
     SET_COUNTER_ARRAY(OMPI_SPC_TESTANY, "The number of times MPI_Testany was called.", false, false),
     SET_COUNTER_ARRAY(OMPI_SPC_TESTSOME, "The number of times MPI_Testsome was called.", false, false),
     SET_COUNTER_ARRAY(OMPI_SPC_TIME_ALLTOALL, "The number microseconds spent performing the MPI_Alltoall operation.  Note: The timer used on the back end is in cycles, which could potentially be problematic on a system where the clock frequency can change.  On such a system, this counter could be inaccurate since we assume a fixed clock rate.", false, true),
+    SET_COUNTER_ARRAY(OMPI_SPC_TIME_ALLTOALLV, "The number microseconds spent performing the MPI_Alltoallv operation.  Note: The timer used on the back end is in cycles, which could potentially be problematic on a system where the clock frequency can change.  On such a system, this counter could be inaccurate since we assume a fixed clock rate.", false, true),
     SET_COUNTER_ARRAY(OMPI_SPC_WAIT, "The number of times MPI_Wait was called.", false, false),
     SET_COUNTER_ARRAY(OMPI_SPC_WAITALL, "The number of times MPI_Waitall was called.", false, false),
     SET_COUNTER_ARRAY(OMPI_SPC_WAITANY, "The number of times MPI_Waitany was called.", false, false),
