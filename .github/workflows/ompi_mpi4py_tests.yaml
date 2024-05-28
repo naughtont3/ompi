@@ -66,9 +66,10 @@ jobs:
     - name: Test mpi4py.run
       run:  python demo/test-run/test_run.py -v
       if:   ${{ true }}
+      timeout-minutes: 10
 
-# TJN: Testing self hosted gh-action runner
-mpi4py-tests-skunk:
+  # TJN: Testing self hosted gh-action runner
+  mpi4py-tests-skunk:
     runs-on: self-hosted
     timeout-minutes: 30
     env:
@@ -122,4 +123,3 @@ mpi4py-tests-skunk:
       run:  python demo/test-run/test_run.py -v
       if:   ${{ true }}
       timeout-minutes: 10
-timeout-minutes: 10
