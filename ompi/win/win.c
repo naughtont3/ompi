@@ -27,6 +27,7 @@
 #include "ompi_config.h"
 
 #include "opal/util/info_subscriber.h"
+#include "opal/util/memprof.h"
 
 #include "mpi.h"
 #include "ompi/win/win.h"
@@ -147,6 +148,7 @@ static int alloc_window(struct ompi_communicator_t *comm, opal_info_t *info, int
 
     /* create the object */
     win = OBJ_NEW(ompi_win_t);
+    OPAL_MEMPROF_START_ALLOC(win->super.s_base.obj_class->cls_name, 0, 0);
     if (NULL == win) {
         return OMPI_ERR_OUT_OF_RESOURCE;
     }
@@ -186,6 +188,7 @@ static int alloc_window(struct ompi_communicator_t *comm, opal_info_t *info, int
     }
 
     *win_out = win;
+    OPAL_MEMPROF_STOP_ALLOC(win->super.s_base.obj_class->cls_name, 0);
 
     return OMPI_SUCCESS;
 }
