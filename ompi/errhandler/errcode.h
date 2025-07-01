@@ -111,6 +111,38 @@ int ompi_mpi_errclass_add (void);
 int ompi_mpi_errnum_add_string (int errnum, const char* string, int len);
 
 /**
+ * Remove an error code
+ *
+ * @param: error code to be removed
+ *
+ * @returns OMPI_SUCCESS on success
+ * @returns OMPI_ERROR otherwise
+ *
+ */
+int ompi_mpi_errcode_remove (int errcode);
+
+/**
+ * Remove an error class
+ *
+ * @param: none
+ *
+ * @returns OMPI_SUCCESS on success
+ * @returns OMPI_ERROR otherwise
+ *
+ */
+int ompi_mpi_errclass_remove (int errclass);
+
+/**
+ * Remove an error string to an error code
+ *
+ * @param: error code for which the string is defined
+ *
+ * @returns OMPI_SUCCESS on success
+ * @returns OMPI_ERROR on error
+ */
+int ompi_mpi_errnum_remove_string (int errnum);
+
+/**
  * Check for a valid error code
  */
 static inline bool ompi_mpi_errcode_is_invalid(int errcode)

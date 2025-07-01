@@ -19,6 +19,7 @@
  *                         and Technology (RIST). All rights reserved.
  * Copyright (c) 2022      Triad National Security, LLC. All rights
  *                         reserved.
+ * Copyright (c) 2025      UT-Battelle, LLC.  All rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -414,6 +415,21 @@ int ompi_mpi_errnum_add_string(int errnum, const char *errstring, int len)
 
     opal_string_copy( errcodep->errstring, errstring, len );
     return OMPI_SUCCESS;
+}
+
+int ompi_mpi_errcode_remove(int errnum)
+{
+    return OMPI_ERR_NOT_IMPLEMENTED; /* BOGUS */
+}
+
+int ompi_mpi_errclass_remove(int errclass)
+{
+    return OMPI_ERR_NOT_IMPLEMENTED; /* BOGUS */
+}
+
+int ompi_mpi_errnum_remove_string(int errnum)
+{
+    return OMPI_ERR_NOT_IMPLEMENTED; /* BOGUS */
 }
 
 static void ompi_mpi_errcode_construct(ompi_mpi_errcode_t *errcode)
